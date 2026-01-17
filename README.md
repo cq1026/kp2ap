@@ -4,12 +4,14 @@
 
 **Proxy gateway for Kiro API (AWS CodeWhisperer)**
 
+[🇷🇺 Русский](docs/ru/README.md) • [🇨🇳 中文](docs/zh/README.md) • [🇪🇸 Español](docs/es/README.md) • [🇮🇩 Indonesia](docs/id/README.md) • [🇧🇷 Português](docs/pt/README.md) • [🇯🇵 日本語](docs/ja/README.md) • [🇻🇳 Tiếng Việt](docs/vi/README.md) • [🇹🇷 Türkçe](docs/tr/README.md) • [🇰🇷 한국어](docs/ko/README.md)
+
 Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
-[![Sponsor](https://img.shields.io/badge/💖_Sponsor-Support_Development-ff69b4)](https://app.lava.top/jwadow)
+[![Sponsor](https://img.shields.io/badge/💖_Sponsor-Support_Development-ff69b4)](#-support-the-project)
 
 *Use Claude models through any OpenAI or Anthropic compatible tool*
 
@@ -19,9 +21,9 @@ Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 
 ---
 
-## 🤖 Supported Models
+## 🤖 Available Models
 
-🧠 **Claude Opus 4.5** — The most powerful model. Best for complex reasoning, deep analysis, and research tasks.
+> ⚠️ **Important:** Model availability depends on your Kiro tier (free/paid). The gateway provides access to whatever models are available in your IDE or CLI based on your subscription. The list below shows models commonly available on the **free tier**.
 
 🚀 **Claude Sonnet 4.5** — Balanced performance. Great for coding, writing, and general-purpose tasks.
 
@@ -30,6 +32,8 @@ Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 📦 **Claude Sonnet 4** — Previous generation. Still powerful and reliable for most use cases.
 
 📦 **Claude 3.7 Sonnet** — Legacy model. Available for backward compatibility.
+
+> 🔒 **Claude Opus 4.5** was removed from the free tier on January 17, 2026. It may be available on paid tiers — check your IDE/CLI model list.
 
 > 💡 **Smart Model Resolution:** Use any model name format — `claude-sonnet-4-5`, `claude-sonnet-4.5`, or even versioned names like `claude-sonnet-4-5-20250929`. The gateway normalizes them automatically.
 
