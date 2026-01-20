@@ -2,9 +2,9 @@
 
 # 👻 Kiro Gateway
 
-**Proxy gateway for Kiro API (AWS CodeWhisperer)**
+**Proxy gateway for Kiro API (Amazon Q Developer / AWS CodeWhisperer)**
 
-[🇷🇺 Русский](docs/ru/README.md) • [🇨🇳 中文](docs/zh/README.md) • [🇪🇸 Español](docs/es/README.md) • [🇮🇩 Indonesia](docs/id/README.md) • [🇧🇷 Português](docs/pt/README.md) • [🇯🇵 日本語](docs/ja/README.md) • [🇻🇳 Tiếng Việt](docs/vi/README.md) • [🇹🇷 Türkçe](docs/tr/README.md) • [🇰🇷 한국어](docs/ko/README.md)
+[🇷🇺 Русский](docs/ru/README.md) • [🇨🇳 中文](docs/zh/README.md) • [🇪🇸 Español](docs/es/README.md) • [🇮🇩 Indonesia](docs/id/README.md) • [🇧🇷 Português](docs/pt/README.md) • [🇯🇵 日本語](docs/ja/README.md) • [🇰🇷 한국어](docs/ko/README.md)
 
 Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 
@@ -13,7 +13,7 @@ Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 [![Sponsor](https://img.shields.io/badge/💖_Sponsor-Support_Development-ff69b4)](#-support-the-project)
 
-*Use Claude models through any OpenAI or Anthropic compatible tool*
+*Use Claude models from Kiro with Claude Code, OpenCode, Cursor, Cline, Roo Code, Kilo Code, Obsidian, OpenAI SDK, LangChain, Continue and other OpenAI or Anthropic compatible tools*
 
 [Models](#-supported-models) • [Features](#-features) • [Quick Start](#-quick-start) • [Configuration](#%EF%B8%8F-configuration) • [💖 Sponsor](#-support-the-project)
 
@@ -25,6 +25,8 @@ Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 
 > ⚠️ **Important:** Model availability depends on your Kiro tier (free/paid). The gateway provides access to whatever models are available in your IDE or CLI based on your subscription. The list below shows models commonly available on the **free tier**.
 
+> 🔒 **Claude Opus 4.5** was removed from the free tier on January 17, 2026. It may be available on paid tiers — check your IDE/CLI model list.
+
 🚀 **Claude Sonnet 4.5** — Balanced performance. Great for coding, writing, and general-purpose tasks.
 
 ⚡ **Claude Haiku 4.5** — Lightning fast. Perfect for quick responses, simple tasks, and chat.
@@ -32,8 +34,6 @@ Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 📦 **Claude Sonnet 4** — Previous generation. Still powerful and reliable for most use cases.
 
 📦 **Claude 3.7 Sonnet** — Legacy model. Available for backward compatibility.
-
-> 🔒 **Claude Opus 4.5** was removed from the free tier on January 17, 2026. It may be available on paid tiers — check your IDE/CLI model list.
 
 > 💡 **Smart Model Resolution:** Use any model name format — `claude-sonnet-4-5`, `claude-sonnet-4.5`, or even versioned names like `claude-sonnet-4-5-20250929`. The gateway normalizes them automatically.
 
@@ -45,6 +45,7 @@ Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 |---------|-------------|
 | 🔌 **OpenAI-compatible API** | Works with any OpenAI-compatible tool |
 | 🔌 **Anthropic-compatible API** | Native `/v1/messages` endpoint |
+| 🌐 **VPN/Proxy Support** | HTTP/SOCKS5 proxy for restricted networks |
 | 🧠 **Extended Thinking** | Reasoning is exclusive to our project |
 | 👁️ **Vision Support** | Send images to model |
 | 🛠️ **Tool Calling** | Supports function calling |
@@ -63,7 +64,7 @@ Made with ❤️ by [@Jwadow](https://github.com/jwadow)
 - Python 3.10+
 - One of the following:
   - [Kiro IDE](https://kiro.dev/) with logged in account, OR
-  - [Kiro CLI](https://kiro.dev/cli/) with AWS SSO (Builder ID)
+  - [Kiro CLI](https://kiro.dev/cli/) with AWS SSO (AWS IAM Identity Center, OIDC) - free Builder ID or corporate account
 
 ### Installation
 
@@ -94,9 +95,13 @@ The server will be available at `http://localhost:8000`
 
 ## ⚙️ Configuration
 
-### Option 1: JSON Credentials File
+### Option 1: JSON Credentials File (Kiro IDE / Enterprise)
 
 Specify the path to the credentials file:
+
+Works with:
+- **Kiro IDE** (standard) - for personal accounts
+- **Enterprise** - for corporate accounts with SSO
 
 ```env
 KIRO_CREDS_FILE="~/.aws/sso/cache/kiro-auth-token.json"
@@ -115,9 +120,12 @@ PROXY_API_KEY="my-super-secret-password-123"
   "refreshToken": "eyJ...",
   "expiresAt": "2025-01-12T23:00:00.000Z",
   "profileArn": "arn:aws:codewhisperer:us-east-1:...",
-  "region": "us-east-1"
+  "region": "us-east-1",
+  "clientIdHash": "abc123..."  // Optional: for corporate SSO setups
 }
 ```
+
+> **Note:** If you have two JSON files in `~/.aws/sso/cache/` (e.g., `kiro-auth-token.json` and a file with a hash name), use `kiro-auth-token.json` in `KIRO_CREDS_FILE`. The gateway will automatically load the other file.
 
 </details>
 
@@ -137,9 +145,11 @@ PROFILE_ARN="arn:aws:codewhisperer:us-east-1:..."
 KIRO_REGION="us-east-1"
 ```
 
-### Option 3: AWS SSO Credentials (kiro-cli)
+### Option 3: AWS SSO Credentials (kiro-cli / Enterprise)
 
-If you use `kiro-cli` with AWS IAM Identity Center (SSO), the gateway will automatically detect and use AWS SSO OIDC authentication.
+If you use `kiro-cli` or Kiro IDE with AWS SSO (AWS IAM Identity Center), the gateway will automatically detect and use the appropriate authentication.
+
+Works with both free Builder ID accounts and corporate accounts.
 
 ```env
 KIRO_CREDS_FILE="~/.aws/sso/cache/your-sso-cache-file.json"
@@ -147,7 +157,7 @@ KIRO_CREDS_FILE="~/.aws/sso/cache/your-sso-cache-file.json"
 # Password to protect YOUR proxy server
 PROXY_API_KEY="my-super-secret-password-123"
 
-# Note: PROFILE_ARN is NOT needed for AWS SSO OIDC (Builder ID) users
+# Note: PROFILE_ARN is NOT needed for AWS SSO (Builder ID and corporate accounts)
 # The gateway will work without it
 ```
 
@@ -167,7 +177,7 @@ AWS SSO credentials files (from `~/.aws/sso/cache/`) contain:
 }
 ```
 
-**Note:** AWS SSO OIDC (Builder ID) users do NOT need `profileArn`. The gateway will work without it (if specified, it will be ignored).
+**Note:** AWS SSO (Builder ID and corporate accounts) users do NOT need `profileArn`. The gateway will work without it (if specified, it will be ignored).
 
 </details>
 
@@ -179,7 +189,7 @@ The gateway automatically detects the authentication type based on the credentia
 - **Kiro Desktop Auth** (default): Used when `clientId` and `clientSecret` are NOT present
   - Endpoint: `https://prod.{region}.auth.desktop.kiro.dev/refreshToken`
   
-- **AWS SSO OIDC**: Used when `clientId` and `clientSecret` ARE present
+- **AWS SSO (OIDC)**: Used when `clientId` and `clientSecret` ARE present
   - Endpoint: `https://oidc.{region}.amazonaws.com/token`
 
 No additional configuration is needed — just point to your credentials file!
@@ -196,7 +206,7 @@ KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"
 # Password to protect YOUR proxy server
 PROXY_API_KEY="my-super-secret-password-123"
 
-# Note: PROFILE_ARN is NOT needed for AWS SSO OIDC (Builder ID) users
+# Note: PROFILE_ARN is NOT needed for AWS SSO (Builder ID and corporate accounts)
 # The gateway will work without it
 ```
 
@@ -233,6 +243,59 @@ If you need to manually extract the refresh token (e.g., for debugging), you can
 - Look for requests to: `prod.us-east-1.auth.desktop.kiro.dev/refreshToken`
 
 </details>
+
+---
+
+## 🌐 VPN/Proxy Support
+
+**For users in China, corporate networks, or regions with connectivity issues to AWS services.**
+
+The gateway supports routing all Kiro API requests through a VPN or proxy server. This is essential if you experience connection problems to AWS endpoints or need to use a corporate proxy.
+
+### Configuration
+
+Add to your `.env` file:
+
+```env
+# HTTP proxy
+VPN_PROXY_URL=http://127.0.0.1:7890
+
+# SOCKS5 proxy
+VPN_PROXY_URL=socks5://127.0.0.1:1080
+
+# With authentication (corporate proxies)
+VPN_PROXY_URL=http://username:password@proxy.company.com:8080
+
+# Without protocol (defaults to http://)
+VPN_PROXY_URL=192.168.1.100:8080
+```
+
+### Supported Protocols
+
+- ✅ **HTTP** — Standard proxy protocol
+- ✅ **HTTPS** — Secure proxy connections
+- ✅ **SOCKS5** — Advanced proxy protocol (common in VPN software)
+- ✅ **Authentication** — Username/password embedded in URL
+
+### When You Need This
+
+| Situation | Solution |
+|-----------|----------|
+| Connection timeouts to AWS | Use VPN/proxy to route traffic |
+| Corporate network restrictions | Configure your company's proxy |
+| Regional connectivity issues | Use a VPN service with proxy support |
+| Privacy requirements | Route through your own proxy server |
+
+### Popular VPN Software with Proxy Support
+
+Most VPN clients provide a local proxy server you can use:
+- **Sing-box** — Modern VPN client with HTTP/SOCKS5 proxy
+- **Clash** — Usually runs on `http://127.0.0.1:7890`
+- **V2Ray** — Configurable SOCKS5/HTTP proxy
+- **Shadowsocks** — SOCKS5 proxy support
+- **Corporate VPN** — Check your IT department for proxy settings
+
+Leave `VPN_PROXY_URL` empty (default) if you don't need proxy support.
 
 ---
 

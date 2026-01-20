@@ -48,6 +48,20 @@ from kiro.config import (
 from kiro.utils import get_machine_fingerprint
 
 
+# Supported SQLite token keys (searched in priority order)
+SQLITE_TOKEN_KEYS = [
+    "kirocli:social:token",      # Social login (Google, GitHub, Microsoft, etc.)
+    "kirocli:odic:token",        # AWS SSO OIDC (kiro-cli corporate)
+    "codewhisperer:odic:token",  # Legacy AWS SSO OIDC
+]
+
+# Device registration keys (for AWS SSO OIDC only)
+SQLITE_REGISTRATION_KEYS = [
+    "kirocli:odic:device-registration",
+    "codewhisperer:odic:device-registration",
+]
+
+
 class AuthType(Enum):
     """
     Type of authentication mechanism.
@@ -134,6 +148,12 @@ class KiroAuthManager:
         self._scopes: Optional[list] = None  # OAuth scopes for AWS SSO OIDC
         self._sso_region: Optional[str] = None  # SSO region for OIDC token refresh (may differ from API region)
         
+        # Enterprise Kiro IDE specific fields
+        self._client_id_hash: Optional[str] = None  # clientIdHash from Enterprise Kiro IDE
+        
+        # Track which SQLite key we loaded credentials from (for saving back to correct location)
+        self._sqlite_token_key: Optional[str] = None
+        
         self._access_token: Optional[str] = None
         self._expires_at: Optional[datetime] = None
         self._lock = asyncio.Lock()
@@ -177,9 +197,20 @@ class KiroAuthManager:
         """
         Loads credentials from kiro-cli SQLite database.
         
-        The database contains an auth_kv table with key-value pairs:
-        - 'codewhisperer:odic:token': JSON with access_token, refresh_token, expires_at, region
-        - 'codewhisperer:odic:device-registration': JSON with client_id, client_secret
+        The database contains an auth_kv table with key-value pairs.
+        Supports multiple authentication types:
+        
+        Token keys (searched in priority order):
+        - 'kirocli:social:token': Social login (Google, GitHub, etc.)
+        - 'kirocli:odic:token': AWS SSO OIDC (kiro-cli corporate)
+        - 'codewhisperer:odic:token': Legacy AWS SSO OIDC
+        
+        Device registration keys (for AWS SSO OIDC only):
+        - 'kirocli:odic:device-registration': Client ID and secret
+        - 'codewhisperer:odic:device-registration': Legacy format
+        
+        The method remembers which key was used for loading, so credentials
+        can be saved back to the correct location after refresh.
         
         Args:
             db_path: Path to SQLite database file
@@ -193,12 +224,15 @@ class KiroAuthManager:
             conn = sqlite3.connect(str(path))
             cursor = conn.cursor()
             
-            # Load token data (try both kiro-cli and codewhisperer key formats)
-            cursor.execute("SELECT value FROM auth_kv WHERE key = ?", ("kirocli:odic:token",))
-            token_row = cursor.fetchone()
-            if not token_row:
-                cursor.execute("SELECT value FROM auth_kv WHERE key = ?", ("codewhisperer:odic:token",))
+            # Try all possible token keys in priority order
+            token_row = None
+            for key in SQLITE_TOKEN_KEYS:
+                cursor.execute("SELECT value FROM auth_kv WHERE key = ?", (key,))
                 token_row = cursor.fetchone()
+                if token_row:
+                    self._sqlite_token_key = key  # Remember which key we loaded from
+                    logger.debug(f"Loaded credentials from SQLite key: {key}")
+                    break
             
             if token_row:
                 token_data = json.loads(token_row[0])
@@ -208,6 +242,8 @@ class KiroAuthManager:
                         self._access_token = token_data['access_token']
                     if 'refresh_token' in token_data:
                         self._refresh_token = token_data['refresh_token']
+                    if 'profile_arn' in token_data:
+                        self._profile_arn = token_data['profile_arn']
                     if 'region' in token_data:
                         # Store SSO region for OIDC token refresh only
                         # IMPORTANT: CodeWhisperer API is only available in us-east-1,
@@ -232,12 +268,14 @@ class KiroAuthManager:
                         except Exception as e:
                             logger.warning(f"Failed to parse expires_at from SQLite: {e}")
             
-            # Load device registration (client_id, client_secret) - try both key formats
-            cursor.execute("SELECT value FROM auth_kv WHERE key = ?", ("kirocli:odic:device-registration",))
-            registration_row = cursor.fetchone()
-            if not registration_row:
-                cursor.execute("SELECT value FROM auth_kv WHERE key = ?", ("codewhisperer:odic:device-registration",))
+            # Load device registration (client_id, client_secret) - try all possible keys
+            registration_row = None
+            for key in SQLITE_REGISTRATION_KEYS:
+                cursor.execute("SELECT value FROM auth_kv WHERE key = ?", (key,))
                 registration_row = cursor.fetchone()
+                if registration_row:
+                    logger.debug(f"Loaded device registration from SQLite key: {key}")
+                    break
             
             if registration_row:
                 registration_data = json.loads(registration_row[0])
@@ -276,6 +314,11 @@ class KiroAuthManager:
         - clientId: OAuth client ID
         - clientSecret: OAuth client secret
         
+        For Enterprise Kiro IDE:
+        - clientIdHash: Hash of client ID (Enterprise Kiro IDE)
+        - When clientIdHash is present, automatically loads clientId and clientSecret
+          from ~/.aws/sso/cache/{clientIdHash}.json (device registration file)
+        
         Args:
             file_path: Path to JSON file
         """
@@ -302,7 +345,12 @@ class KiroAuthManager:
                 self._api_host = get_kiro_api_host(self._region)
                 self._q_host = get_kiro_q_host(self._region)
             
-            # Load AWS SSO OIDC specific fields
+            # Load clientIdHash and device registration for Enterprise Kiro IDE
+            if 'clientIdHash' in data:
+                self._client_id_hash = data['clientIdHash']
+                self._load_enterprise_device_registration(self._client_id_hash)
+            
+            # Load AWS SSO OIDC specific fields (if directly in credentials file)
             if 'clientId' in data:
                 self._client_id = data['clientId']
             if 'clientSecret' in data:
@@ -324,6 +372,37 @@ class KiroAuthManager:
             
         except Exception as e:
             logger.error(f"Error loading credentials from file: {e}")
+    
+    def _load_enterprise_device_registration(self, client_id_hash: str) -> None:
+        """
+        Loads clientId and clientSecret from Enterprise Kiro IDE device registration file.
+        
+        Enterprise Kiro IDE uses AWS SSO OIDC authentication. Device registration is stored at:
+        ~/.aws/sso/cache/{clientIdHash}.json
+        
+        Args:
+            client_id_hash: Client ID hash used to locate the device registration file
+        """
+        try:
+            device_reg_path = Path.home() / ".aws" / "sso" / "cache" / f"{client_id_hash}.json"
+            
+            if not device_reg_path.exists():
+                logger.warning(f"Enterprise device registration file not found: {device_reg_path}")
+                return
+            
+            with open(device_reg_path, 'r', encoding='utf-8') as f:
+                device_data = json.load(f)
+            
+            if 'clientId' in device_data:
+                self._client_id = device_data['clientId']
+            
+            if 'clientSecret' in device_data:
+                self._client_secret = device_data['clientSecret']
+            
+            logger.info(f"Enterprise device registration loaded from {device_reg_path}")
+            
+        except Exception as e:
+            logger.error(f"Error loading enterprise device registration: {e}")
     
     def _save_credentials_to_file(self) -> None:
         """
@@ -368,6 +447,13 @@ class KiroAuthManager:
         and available after gateway restart or for other processes reading
         the same SQLite database.
         
+        Strategy:
+        1. If we know which key we loaded from (_sqlite_token_key), save to that key
+        2. If that fails or key is unknown, try all supported keys as fallback
+        
+        This approach ensures credentials are saved to the correct location
+        regardless of authentication type (social login, AWS SSO OIDC, legacy).
+        
         Updates the auth_kv table with fresh access_token, refresh_token,
         and expires_at values after successful token refresh.
         """
@@ -396,23 +482,35 @@ class KiroAuthManager:
             
             token_json = json.dumps(token_data)
             
-            # Try to update kirocli:odic:token first (newer format)
-            cursor.execute(
-                "UPDATE auth_kv SET value = ? WHERE key = ?",
-                (token_json, "kirocli:odic:token")
-            )
-            
-            # If no rows updated, try codewhisperer:odic:token (legacy format)
-            if cursor.rowcount == 0:
+            # Save back to the same key we loaded from (if known)
+            if self._sqlite_token_key:
                 cursor.execute(
                     "UPDATE auth_kv SET value = ? WHERE key = ?",
-                    (token_json, "codewhisperer:odic:token")
+                    (token_json, self._sqlite_token_key)
                 )
+                if cursor.rowcount > 0:
+                    conn.commit()
+                    conn.close()
+                    logger.debug(f"Credentials saved to SQLite key: {self._sqlite_token_key}")
+                    return
+                else:
+                    logger.warning(f"Failed to update SQLite key: {self._sqlite_token_key}, trying fallback")
             
-            conn.commit()
+            # Fallback: try all keys (for edge cases where source key is unknown)
+            for key in SQLITE_TOKEN_KEYS:
+                cursor.execute(
+                    "UPDATE auth_kv SET value = ? WHERE key = ?",
+                    (token_json, key)
+                )
+                if cursor.rowcount > 0:
+                    conn.commit()
+                    conn.close()
+                    logger.debug(f"Credentials saved to SQLite key: {key} (fallback)")
+                    return
+            
+            # If we get here, no keys were updated
             conn.close()
-            
-            logger.debug(f"Credentials saved to SQLite: {self._sqlite_db}")
+            logger.warning(f"Failed to save credentials to SQLite: no matching keys found")
             
         except sqlite3.Error as e:
             logger.error(f"SQLite error saving credentials: {e}")
@@ -569,6 +667,11 @@ class KiroAuthManager:
         This is the internal implementation called by _refresh_token_aws_sso_oidc().
         It performs a single refresh attempt with current in-memory credentials.
         
+        Uses AWS SSO OIDC CreateToken API format:
+        - Content-Type: application/json (not form-urlencoded)
+        - Parameter names: camelCase (clientId, not client_id)
+        - Payload: JSON object
+        
         Raises:
             ValueError: If required credentials are not set
             httpx.HTTPStatusError: On HTTP error (including 400 for invalid token)
@@ -582,21 +685,23 @@ class KiroAuthManager:
         
         logger.info("Refreshing Kiro token via AWS SSO OIDC...")
         
-        # AWS SSO OIDC uses form-urlencoded data
+        # AWS SSO OIDC CreateToken API uses JSON with camelCase parameters
         # Use SSO region for OIDC endpoint (may differ from API region)
         sso_region = self._sso_region or self._region
         url = get_aws_sso_oidc_url(sso_region)
-        data = {
-            "grant_type": "refresh_token",
-            "client_id": self._client_id,
-            "client_secret": self._client_secret,
-            "refresh_token": self._refresh_token,
+        
+        # IMPORTANT: AWS SSO OIDC CreateToken API requires:
+        # 1. JSON payload (not form-urlencoded)
+        # 2. camelCase parameter names (clientId, not client_id)
+        payload = {
+            "grantType": "refresh_token",
+            "clientId": self._client_id,
+            "clientSecret": self._client_secret,
+            "refreshToken": self._refresh_token,
         }
         
-        # Note: scope parameter is NOT sent during refresh per OAuth 2.0 RFC 6749 Section 6
-        # AWS SSO OIDC uses the originally granted scopes automatically
         headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/json",
         }
         
         # Log request details (without secrets) for debugging
@@ -604,7 +709,7 @@ class KiroAuthManager:
                      f"api_region={self._region}, client_id={self._client_id[:8]}...")
         
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(url, data=data, headers=headers)
+            response = await client.post(url, json=payload, headers=headers)
             
             # Log response details for debugging (especially on errors)
             if response.status_code != 200:
@@ -624,6 +729,7 @@ class KiroAuthManager:
             
             result = response.json()
         
+        # AWS SSO OIDC CreateToken API returns camelCase fields
         new_access_token = result.get("accessToken")
         new_refresh_token = result.get("refreshToken")
         expires_in = result.get("expiresIn", 3600)

@@ -2,9 +2,9 @@
 
 # 👻 Kiro Gateway
 
-**Kiro API (AWS CodeWhisperer) 프록시 게이트웨이**
+**Kiro API (Amazon Q Developer / AWS CodeWhisperer) 프록시 게이트웨이**
 
-[🇬🇧 English](../../README.md) • [🇷🇺 Русский](../ru/README.md) • [🇨🇳 中文](../zh/README.md) • [🇪🇸 Español](../es/README.md) • [🇮🇩 Indonesia](../id/README.md) • [🇧🇷 Português](../pt/README.md) • [🇯🇵 日本語](../ja/README.md) • [🇻🇳 Tiếng Việt](../vi/README.md) • [🇹🇷 Türkçe](../tr/README.md)
+[🇬🇧 English](../../README.md) • [🇷🇺 Русский](../ru/README.md) • [🇨🇳 中文](../zh/README.md) • [🇪🇸 Español](../es/README.md) • [🇮🇩 Indonesia](../id/README.md) • [🇧🇷 Português](../pt/README.md) • [🇯🇵 日本語](../ja/README.md)
 
 [@Jwadow](https://github.com/jwadow)가 ❤️를 담아 제작
 
@@ -13,7 +13,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 [![Sponsor](https://img.shields.io/badge/💖_Sponsor-개발_지원-ff69b4)](#-프로젝트-후원)
 
-*OpenAI 또는 Anthropic 호환 도구로 Claude 모델 사용*
+*Kiro의 Claude 모델을 Claude Code, OpenCode, Cursor, Cline, Roo Code, Kilo Code, Obsidian, OpenAI SDK, LangChain, Continue 및 기타 OpenAI 또는 Anthropic 호환 도구와 함께 사용*
 
 [모델](#-지원-모델) • [기능](#-기능) • [빠른-시작](#-빠른-시작) • [설정](#%EF%B8%8F-설정) • [💖 후원](#-프로젝트-후원)
 
@@ -25,6 +25,8 @@
 
 > ⚠️ **중요:** 모델 가용성은 Kiro 플랜(무료/유료)에 따라 다릅니다. 게이트웨이는 구독에 따라 IDE 또는 CLI에서 사용 가능한 모델에 대한 액세스를 제공합니다. 아래 목록은 **무료 플랜**에서 일반적으로 사용 가능한 모델을 보여줍니다.
 
+> 🔒 **Claude Opus 4.5**는 2026년 1월 17일에 무료 플랜에서 제거되었습니다. 유료 플랜에서 사용 가능할 수 있습니다 — IDE/CLI의 모델 목록을 확인하세요.
+
 🚀 **Claude Sonnet 4.5** — 균형 잡힌 성능. 코딩, 글쓰기, 범용 작업에 적합.
 
 ⚡ **Claude Haiku 4.5** — 번개처럼 빠름. 빠른 응답, 간단한 작업, 채팅에 완벽.
@@ -32,8 +34,6 @@
 📦 **Claude Sonnet 4** — 이전 세대. 대부분의 사용 사례에서 여전히 강력하고 신뢰할 수 있음.
 
 📦 **Claude 3.7 Sonnet** — 레거시 모델. 하위 호환성을 위해 제공.
-
-> 🔒 **Claude Opus 4.5**는 2026년 1월 17일에 무료 플랜에서 제거되었습니다. 유료 플랜에서 사용 가능할 수 있습니다 — IDE/CLI의 모델 목록을 확인하세요.
 
 > 💡 **스마트 모델 해석:** 어떤 모델 이름 형식이든 사용 가능 — `claude-sonnet-4-5`, `claude-sonnet-4.5`, 또는 `claude-sonnet-4-5-20250929`와 같은 버전 이름도. 게이트웨이가 자동으로 정규화합니다.
 
@@ -45,6 +45,7 @@
 |------|------|
 | 🔌 **OpenAI 호환 API** | OpenAI 호환 도구와 함께 작동 |
 | 🔌 **Anthropic 호환 API** | 네이티브 `/v1/messages` 엔드포인트 |
+| 🌐 **VPN/프록시 지원** | 제한된 네트워크용 HTTP/SOCKS5 프록시 |
 | 🧠 **확장 사고** | 추론 기능은 우리 프로젝트만의 독점 기능 |
 | 👁️ **비전 지원** | 모델에 이미지 전송 |
 | 🛠️ **도구 호출** | 함수 호출 지원 |
@@ -63,7 +64,7 @@
 - Python 3.10+
 - 다음 중 하나:
   - 로그인된 계정이 있는 [Kiro IDE](https://kiro.dev/), 또는
-  - AWS SSO (Builder ID)가 있는 [Kiro CLI](https://kiro.dev/cli/)
+  - AWS SSO (AWS IAM Identity Center, OIDC)가 있는 [Kiro CLI](https://kiro.dev/cli/) - 무료 Builder ID 또는 기업 계정
 
 ### 설치
 
@@ -94,9 +95,13 @@ python main.py --port 9000
 
 ## ⚙️ 설정
 
-### 옵션 1: JSON 자격 증명 파일
+### 옵션 1: JSON 자격 증명 파일 (Kiro IDE / Enterprise)
 
 자격 증명 파일 경로 지정:
+
+다음과 함께 작동:
+- **Kiro IDE** (표준) - 개인 계정용
+- **Enterprise** - SSO가 있는 기업 계정용
 
 ```env
 KIRO_CREDS_FILE="~/.aws/sso/cache/kiro-auth-token.json"
@@ -115,9 +120,12 @@ PROXY_API_KEY="my-super-secret-password-123"
   "refreshToken": "eyJ...",
   "expiresAt": "2025-01-12T23:00:00.000Z",
   "profileArn": "arn:aws:codewhisperer:us-east-1:...",
-  "region": "us-east-1"
+  "region": "us-east-1",
+  "clientIdHash": "abc123..."  // Optional: for corporate SSO setups
 }
 ```
+
+> **참고:** `~/.aws/sso/cache/`에 두 개의 JSON 파일이 있는 경우 (예: `kiro-auth-token.json` 및 해시 이름의 파일), `KIRO_CREDS_FILE`에서 `kiro-auth-token.json`을 사용하세요. 게이트웨이가 다른 파일을 자동으로 로드합니다.
 
 </details>
 
@@ -137,9 +145,11 @@ PROFILE_ARN="arn:aws:codewhisperer:us-east-1:..."
 KIRO_REGION="us-east-1"
 ```
 
-### 옵션 3: AWS SSO 자격 증명 (kiro-cli)
+### 옵션 3: AWS SSO 자격 증명 (kiro-cli / Enterprise)
 
-AWS IAM Identity Center (SSO)와 함께 `kiro-cli`를 사용하는 경우, 게이트웨이가 자동으로 AWS SSO OIDC 인증을 감지하고 사용합니다.
+AWS SSO (AWS IAM Identity Center)와 함께 `kiro-cli` 또는 Kiro IDE를 사용하는 경우, 게이트웨이가 자동으로 적절한 인증을 감지하고 사용합니다.
+
+무료 Builder ID 계정과 기업 계정 모두에서 작동합니다.
 
 ```env
 KIRO_CREDS_FILE="~/.aws/sso/cache/your-sso-cache-file.json"
@@ -147,7 +157,7 @@ KIRO_CREDS_FILE="~/.aws/sso/cache/your-sso-cache-file.json"
 # 프록시 서버를 보호하는 비밀번호
 PROXY_API_KEY="my-super-secret-password-123"
 
-# 참고: AWS SSO OIDC (Builder ID) 사용자는 PROFILE_ARN 불필요
+# 참고: AWS SSO (Builder ID 및 기업 계정) 사용자는 PROFILE_ARN 불필요
 # 게이트웨이는 그것 없이도 작동합니다
 ```
 
@@ -167,7 +177,7 @@ AWS SSO 자격 증명 파일 (`~/.aws/sso/cache/`에서)에는 다음이 포함�
 }
 ```
 
-**참고:** AWS SSO OIDC (Builder ID) 사용자는 `profileArn`이 필요 없습니다. 게이트웨이는 그것 없이도 작동합니다 (지정된 경우 무시됨).
+**참고:** AWS SSO (Builder ID 및 기업 계정) 사용자는 `profileArn`이 필요 없습니다. 게이트웨이는 그것 없이도 작동합니다 (지정된 경우 무시됨).
 
 </details>
 
@@ -179,7 +189,7 @@ AWS SSO 자격 증명 파일 (`~/.aws/sso/cache/`에서)에는 다음이 포함�
 - **Kiro Desktop Auth** (기본값): `clientId`와 `clientSecret`이 없을 때 사용
   - 엔드포인트: `https://prod.{region}.auth.desktop.kiro.dev/refreshToken`
   
-- **AWS SSO OIDC**: `clientId`와 `clientSecret`이 있을 때 사용
+- **AWS SSO (OIDC)**: `clientId`와 `clientSecret`이 있을 때 사용
   - 엔드포인트: `https://oidc.{region}.amazonaws.com/token`
 
 추가 설정 불필요 — 자격 증명 파일만 지정하면 됩니다!
@@ -196,7 +206,7 @@ KIRO_CLI_DB_FILE="~/.local/share/kiro-cli/data.sqlite3"
 # 프록시 서버를 보호하는 비밀번호
 PROXY_API_KEY="my-super-secret-password-123"
 
-# 참고: AWS SSO OIDC (Builder ID) 사용자는 PROFILE_ARN 불필요
+# 참고: AWS SSO (Builder ID 및 기업 계정) 사용자는 PROFILE_ARN 불필요
 # 게이트웨이는 그것 없이도 작동합니다
 ```
 
@@ -233,6 +243,59 @@ PROXY_API_KEY="my-super-secret-password-123"
 - 다음으로의 요청 찾기: `prod.us-east-1.auth.desktop.kiro.dev/refreshToken`
 
 </details>
+
+---
+
+## 🌐 VPN/프록시 지원
+
+**중국, 기업 네트워크 또는 AWS 서비스 연결에 문제가 있는 지역의 사용자를 위한 것입니다.**
+
+게이트웨이는 모든 Kiro API 요청을 VPN 또는 프록시 서버를 통해 라우팅하는 것을 지원합니다. AWS 엔드포인트에 대한 연결 문제가 발생하거나 기업 프록시를 사용해야 하는 경우 필수입니다.
+
+### 설정
+
+`.env` 파일에 추가:
+
+```env
+# HTTP 프록시
+VPN_PROXY_URL=http://127.0.0.1:7890
+
+# SOCKS5 프록시
+VPN_PROXY_URL=socks5://127.0.0.1:1080
+
+# 인증 포함 (기업 프록시)
+VPN_PROXY_URL=http://username:password@proxy.company.com:8080
+
+# 프로토콜 없음 (기본값 http://)
+VPN_PROXY_URL=192.168.1.100:8080
+```
+
+### 지원되는 프로토콜
+
+- ✅ **HTTP** — 표준 프록시 프로토콜
+- ✅ **HTTPS** — 보안 프록시 연결
+- ✅ **SOCKS5** — 고급 프록시 프로토콜 (VPN 소프트웨어에서 일반적)
+- ✅ **인증** — URL에 포함된 사용자명/비밀번호
+
+### 필요한 경우
+
+| 상황 | 해결책 |
+|------|--------|
+| AWS 연결 타임아웃 | VPN/프록시를 사용하여 트래픽 라우팅 |
+| 기업 네트워크 제한 | 회사 프록시 구성 |
+| 지역 연결 문제 | 프록시 지원이 있는 VPN 서비스 사용 |
+| 개인정보 보호 요구사항 | 자신의 프록시 서버를 통해 라우팅 |
+
+### 프록시 지원이 있는 인기 VPN 소프트웨어
+
+대부분의 VPN 클라이언트는 로컬 프록시 서버를 제공합니다:
+- **Sing-box** — HTTP/SOCKS5 프록시 지원이 있는 최신 VPN 클라이언트
+- **Clash** — 일반적으로 `http://127.0.0.1:7890`에서 실행
+- **V2Ray** — 구성 가능한 SOCKS5/HTTP 프록시
+- **Shadowsocks** — SOCKS5 프록시 지원
+- **기업 VPN** — 프록시 설정에 대해 IT 부서에 문의
+
+프록시 지원이 필요하지 않으면 `VPN_PROXY_URL`을 비워두세요 (기본값).
 
 ---
 
