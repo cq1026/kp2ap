@@ -189,9 +189,18 @@ async def messages(
         logger.warning(f"Failed to log Kiro request: {e}")
     
     # Create HTTP client with retry logic
-    shared_client = request.app.state.http_client
-    http_client = KiroHttpClient(auth_manager, shared_client=shared_client)
+    # For streaming: use per-request client to avoid CLOSE_WAIT leak on VPN disconnect (issue #54)
+    # For non-streaming: use shared client for connection pooling
     url = f"{auth_manager.api_host}/generateAssistantResponse"
+    
+    if request_data.stream:
+        # Streaming mode: per-request client prevents orphaned connections
+        # when network interface changes (VPN disconnect/reconnect)
+        http_client = KiroHttpClient(auth_manager, shared_client=None)
+    else:
+        # Non-streaming mode: shared client for efficient connection reuse
+        shared_client = request.app.state.http_client
+        http_client = KiroHttpClient(auth_manager, shared_client=shared_client)
     
     # Prepare data for token counting
     # Convert Pydantic models to dicts for tokenizer
@@ -323,7 +332,7 @@ async def messages(
     
     except HTTPException as e:
         await http_client.close()
-        logger.warning(f"HTTP {e.status_code} - POST /v1/messages - {e.detail}")
+        logger.error(f"HTTP {e.status_code} - POST /v1/messages - {e.detail}")
         if debug_logger:
             debug_logger.flush_on_error(e.status_code, str(e.detail))
         raise
